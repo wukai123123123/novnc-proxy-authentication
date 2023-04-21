@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+    <server listener="0.0.0.0:8080" mode="debug">
+        <!--
+            静态资源路径映射配置
+                open 是否开启
+                dir 物理文件夹路径
+                path 请求路径 最后不要带"/"
+        -->
+        <static open="true" dir="./resource" path="/html"/>
+    </server>
+</config>

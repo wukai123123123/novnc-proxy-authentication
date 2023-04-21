@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>VNC</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #242424;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: Roboto, PingFang SC, Noto Sans SC, Microsoft YaHei UI, Microsoft YaHei, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        #top_bar {
+            background-color: #575757;
+            color: white;
+            padding: 6px 100px 5px 100px;
+            border-bottom: 1px solid #6d6d6d;
+            position: relative;
+        }
+
+        #status {
+            text-align: center;
+        }
+
+        #sendCtrlAltDelButton {
+            top: 4px;
+            right: 5px;
+            border: 1px solid #efefef;
+            font-size: 12px;
+            line-height: 14px;
+            padding: 5px 8px;
+            cursor: pointer;
+            position: absolute;
+        }
+
+        #screen {
+            flex: 1; /* 填充剩余空间 */
+            overflow: hidden;
+        }
+    </style>
+    <script type="module" crossorigin="anonymous">
+
+        // RFB使用API与VNC服务器进行连接和通信
+        import RFB from './core/rfb.js';
+
+        let rfb;
+        let desktopName;
+
+        //获取url中"?"符后的参数字串
+        function getRequest() {
+            let url = location.search;
+            let theRequest = {};
+            if (url.indexOf("?") !== -1) {
+                let str = url.substring(1);
+                let strs = str.split("&");
+                for (let i = 0; i < strs.length; i++) {
+                    theRequest[strs[i].split("=")[0]] = decodeURI(strs[i].split("=")[1]);
+                }
+            }
+            return theRequest;
+        }
+
+        document.getElementById('sendCtrlAltDelButton').onclick = sendCtrlAltDel;
+
+        const viewId = getRequest().id; // 远程ID,传递给服务器端用于选择哪个
+        const pathPrefix = getRequest().pathPrefix; // 路径前缀
+        const viewOnly = getRequest().viewOnly && getRequest().viewOnly === 'true'; // 是否仅查看
+        const scale = getRequest().scale && getRequest().scale === 'true'; // 是否缩放
+        const path = "../vnc?id=" + viewId; // ws请求路径
+
+        // 当这个函数被调用时成功连接到服务器
+        function connectedToServer(e) {
+            status("已连接到" + desktopName);
+        }
+
+        // 断开连接时调用这个函数
+        function disconnectedFromServer(e) {
+            if (e.detail.clean) {
+                status("断开连接");
+            } else {
+                status("服务器出错，连接已关闭");
+            }
+        }
+
+        // 当调用这个函数时，服务器需要认证凭据
+        function credentialsAreRequired(e) {
+            const password = prompt("请输入密码:");
+            rfb.sendCredentials({password: password});
+        }
+
+        // 当这个函数被调用时，已经收到来自服务器的桌面名
+        function updateDesktopName(e) {
+            desktopName = e.detail.name;
+        }
+
+        // 因为大多数操作系统会捕获Ctrl+Alt+Del在它们有机会被浏览器拦截之前，我们提供了一种方法来模拟这个键序列
+        function sendCtrlAltDel() {
+            rfb.sendCtrlAltDel();
+            return false;
+        }
+
+        // 在顶部栏中显示状态文本
+        function status(text) {
+            document.getElementById('status').textContent = text;
+        }
+
+        // 执行连接
+        status("连接中");
+
+        // 构建用于连接的websocket的URL
+        let url;
+        if (window.location.protocol === "https:") {
+            url = 'wss';
+        } else {
+            url = 'ws';
+        }
+        url += '://' + window.location.hostname;
+        if (window.location.port !== '80' && window.location.port !== '443') {
+            url += ':' + window.location.port;
+        }
+        url += (pathPrefix ? pathPrefix : '') + '/' + path;
+
+        // 创建一个新的RFB对象将启动一个新的连接
+        rfb = new RFB(document.getElementById('screen'), url, {credentials: {password: '0'}});
+
+        // 向来自RFB模块的重要事件添加侦听器
+        rfb.addEventListener("connect", connectedToServer);
+        rfb.addEventListener("disconnect", disconnectedFromServer);
+        rfb.addEventListener("credentialsrequired", credentialsAreRequired);
+        rfb.addEventListener("desktopname", updateDesktopName);
+
+        // 设置可在活动连接上更改的参数
+        rfb.viewOnly = viewOnly;
+        rfb.scaleViewport = scale;
+    </script>
+</head>
+
+<body>
+<div id="top_bar">
+    <div id="status">加载中</div>
+    <div id="sendCtrlAltDelButton">Ctrl+Alt+Del</div>
+</div>
+<!-- 远程屏幕显示内容 -->
+<div id="screen"></div>
+</body>
+</html>
